@@ -34,25 +34,20 @@
         var connectionStatus = "connecting"; // connecting, connected, saved, error
 
         window.generateQuestion = async function() {
-            // 실제 API 키를 여기에 입력하거나, 안전한 방법으로 관리해야 합니다.
-            // 여기서는 테스트를 위해 임시로 입력합니다.
-            var API_KEY = "AIzaSyCpf2fKJtPVb6nZ0vZyM5y7vgt55wsZu_o"; 
             var prompt = "밸런스 게임 질문을 하나 만들어줘. 형식: 'A vs B, 당신의 선택은?' A와 B는 흥미로운 주제여야 해. 답변은 '질문 내용'만 반환해.";
             
             try {
-                var response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + API_KEY, {
+                var response = await fetch("/api/generate", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
+                    body: JSON.stringify({ prompt: prompt })
                 });
                 var data = await response.json();
                 
-                // 안전한 데이터 접근
-                if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
-                    var text = data.candidates[0].content.parts[0].text;
-                    document.getElementById("question").innerText = text;
+                if (data && data.text) {
+                    document.getElementById("question").innerText = data.text;
+                    // 질문이 바뀌었으므로 다시 렌더링하거나 필요한 처리를 합니다.
+                    // 여기서는 간단히 텍스트만 업데이트합니다.
                 } else {
                     console.error("API 응답 구조가 예상과 다릅니다:", data);
                     alert("질문 생성 중 오류가 발생했습니다.");
