@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>오늘의 밸런스</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @keyframes flash { 0% { background: #d4f5e9; } 100% { background: #f8f8f8; } }
+        .flash-effect { animation: flash 0.5s ease-out; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .blink { animation: blink 1s infinite; }
+    </style>
+</head>
+<body class="bg-white flex justify-center min-h-screen">
+    <div class="w-full max-w-[480px] p-4" id="app">
+        <!-- UI will be rendered here -->
+    </div>
+
+    <script>
+        var SUPABASE_URL = "https://rwtijbgczknztsldhfvd.supabase.co";
+        var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3dGlqYmdjemtuenRzbGRoZnZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2MzcwMTYsImV4cCI6MjA5MTIxMzAxNn0.YHOBeH0W44CfApPIPN27aonvAr0_o6sM5nHBhII0uPU";
+        var TABLE_NAME = "votes";
+        var QUESTION_ID = "chicken-vs-pizza";
+
+        var sb;
+        var votes = { A: 0, B: 0 };
+        var userChoice = null;
+        var connectionStatus = "connecting"; // connecting, connected, saved, error
+
+        function getStatusIcon() {
+            if (connectionStatus === "connecting") return '<span class="w-2 h-2 rounded-full bg-orange-500"></span>';
+            if (connectionStatus === "connected") return '<span class="w-2 h-2 rounded-full bg-green-500 blink"></span>';
+            if (connectionStatus === "saved") return '<span class="text-green-600 font-bold">✓</span>';
+            return '<span class="w-2 h-2 rounded-full bg-red-500"></span>';
+        }
+
+        function render() {
+            var total = votes.A + votes.B;
+            var percentA = total === 0 ? 50 : Math.round((votes.A / total) * 100);
+            var percentB = 100 - percentA;
+
+            var app = document.getElementById("app");
+            var html = '<div class="flex flex-col gap-6">';
+            html += '<div class="flex justify-between items-center">';
+            html += '<div>' + getStatusIcon() + '</div>';
+            html += '<span class="bg-[#E1F5EE] text-[#0F6E56] px-3 py-1 rounded-full text-sm font-bold">밸런스 게임</span>';
+            html += '<button onclick="fetchVotes()" class="text-gray-400 hover:text-gray-600">↻</button>';
+            html += '</div>';
+            html += '<h1 class="text-2xl font-bold text-center">치킨 🍗 vs 피자 🍕<br>당신의 선택은?</h1>';
+            
+            html += '<div class="grid grid-cols-2 gap-4">';
+            html += '<button onclick="vote(\'A\')" class="border-[1.5px] border-[#e0e0e0] rounded-xl p-6 flex flex-col items-center gap-2 ' + (userChoice === 'A' ? 'border-[#1D9E75] ring-2 ring-[#1D9E75]' : '') + '">';
+            html += '<span class="text-4xl">🍗</span>';
+            html += '<span class="font-bold text-lg">치킨</span>';
+            html += '<span class="text-gray-500 text-sm">바삭한 유혹</span>';
+            html += (userChoice === 'A' ? '<span class="text-xs bg-[#1D9E75] text-white px-2 py-0.5 rounded">내 선택</span>' : '');
+            html += '</button>';
+            html += '<button onclick="vote(\'B\')" class="border-[1.5px] border-[#e0e0e0] rounded-xl p-6 flex flex-col items-center gap-2 ' + (userChoice === 'B' ? 'border-[#378ADD] ring-2 ring-[#378ADD]' : '') + '">';
+            html += '<span class="text-4xl">🍕</span>';
+            html += '<span class="font-bold text-lg">피자</span>';
+            html += '<span class="text-gray-500 text-sm">치즈의 풍미</span>';
+            html += (userChoice === 'B' ? '<span class="text-xs bg-[#378ADD] text-white px-2 py-0.5 rounded">내 선택</span>' : '');
+            html += '</button>';
+            html += '</div>';
+
+            html += '<div class="bg-[#f8f8f8] rounded-xl p-5 flex flex-col gap-4">';
+            html += '<div class="flex justify-between text-sm text-gray-600">';
+            html += '<span>' + votes.A + '표</span>';
+            html += '<span>전체 ' + total + '참여</span>';
+            html += '<span>' + votes.B + '표</span>';
+            html += '</div>';
+            html += '<div class="flex h-2.5 rounded-full overflow-hidden">';
+            html += '<div style="width: ' + percentA + '%" class="bg-[#1D9E75] transition-all duration-500"></div>';
+            html += '<div style="width: ' + percentB + '%" class="bg-[#378ADD] transition-all duration-500"></div>';
+            html += '</div>';
+            html += '<div class="flex justify-between font-bold">';
+            html += '<span class="text-[#1D9E75]">' + percentA + '%</span>';
+            html += '<span class="text-[#378ADD]">' + percentB + '%</span>';
+            html += '</div>';
+            html += '</div>';
+            html += '</div>';
+            
+            app.innerHTML = html;
+        }
+
+        async function fetchVotes() {
+            connectionStatus = "connecting";
+            render();
+            try {
+                var { data, error } = await sb
+                    .from(TABLE_NAME)
+                    .select("option")
+                    .eq("question_id", QUESTION_ID);
+                
+                if (error) throw error;
+
+                votes = { A: 0, B: 0 };
+                data.forEach(function(row) {
+                    votes[row.option]++;
+                });
+                connectionStatus = "connected";
+            } catch (e) {
+                console.error(e);
+                connectionStatus = "error";
+            }
+            render();
+        }
+
+        async function vote(choice) {
+            if (userChoice) return;
+            
+            try {
+                var { error } = await sb
+                    .from(TABLE_NAME)
+                    .insert({ question_id: QUESTION_ID, option: choice });
+                
+                if (error) throw error;
+                
+                userChoice = choice;
+                connectionStatus = "saved";
+                fetchVotes();
+            } catch (e) {
+                console.error(e);
+                connectionStatus = "error";
+                render();
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', function() {
+            sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            
+            // Realtime subscription
+            sb.channel("any")
+                .on("postgres_changes", { event: "INSERT", schema: "public", table: TABLE_NAME }, function(payload) {
+                    if (payload.new.question_id === QUESTION_ID) {
+                        votes[payload.new.option]++;
+                        render();
+                    }
+                })
+                .subscribe(function(status) {
+                    if (status === "SUBSCRIBED") {
+                        connectionStatus = "connected";
+                        render();
+                    }
+                });
+
+            fetchVotes();
+        });
+
+    </script>
+</body>
+</html>
+
