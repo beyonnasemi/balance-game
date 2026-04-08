@@ -7,11 +7,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        @import url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_20-10@1.0/Y-Pairing.woff');
         @keyframes flash { 0% { background: #d4f5e9; } 100% { background: #f8f8f8; } }
         .flash-effect { animation: flash 0.5s ease-out; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         .blink { animation: blink 1s infinite; }
         body { background: linear-gradient(180deg, #E0F2FE 0%, #FFFFFF 100%); }
+        #question { font-family: 'Y-Pairing', sans-serif; word-break: keep-all; }
     </style>
 </head>
 <body class="flex justify-center min-h-screen">
@@ -38,7 +40,7 @@
             var prompt = "밸런스 게임 질문을 하나 만들어줘. 형식: 'A vs B, 당신의 선택은?' A와 B는 흥미로운 주제여야 해. 답변은 '질문 내용'만 반환해.";
             
             try {
-                var response = await window.fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + API_KEY, {
+                var response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + API_KEY, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -119,7 +121,14 @@
 
             // 질문 카드
             html += '<div class="bg-white p-6 rounded-3xl shadow-lg border border-white/50">';
-            html += '<h1 id="question" class="text-2xl font-bold text-center text-gray-900 mb-6">' + (questions.find(q => q.id === QUESTION_ID)?.title || "밸런스 게임") + '</h1>';
+            var title = (questions.find(q => q.id === QUESTION_ID)?.title || "밸런스 게임");
+            // "A vs B, 당신의 선택은?" 형태의 질문을 처리
+            var parts = title.split(" vs ");
+            var formattedTitle = parts[0];
+            if (parts.length > 1) {
+                formattedTitle += "<br>vs<br>" + parts[1].replace(", 당신의 선택은?", "") + "<br>당신의 선택은?";
+            }
+            html += '<h1 id="question" class="text-2xl font-bold text-center text-gray-900 mb-6">' + formattedTitle + '</h1>';
             
             html += '<div class="grid grid-cols-2 gap-4 mb-6">';
             html += '<button onclick="vote(\'A\')" class="bg-white border-2 border-gray-100 rounded-2xl p-4 flex flex-col items-center gap-2 transition-all ' + (userChoice === 'A' ? 'border-[#1D9E75] ring-2 ring-[#1D9E75]/20' : 'hover:border-gray-200') + '">';
